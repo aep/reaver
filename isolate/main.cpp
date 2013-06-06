@@ -12,6 +12,9 @@
 
 
 
+
+#define mount(source,target,fstype, flags, data) if (::mount(source,target,fstype, flags, data) != 0) {perror("mount"); }
+
 struct context
 {
     int argc;
@@ -30,11 +33,10 @@ static int child(void *arg)
 
 
     // create my own temp universe
-    umount ("/tmp");
-    mount  (0, "/tmp", "tmpfs", 0, 0);
+    umount ("/boot");
+    mount  (0, "/boot", "tmpfs", 0, 0);
 
-    mkdir  ("/tmp/root" , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
-    mkdir  ("/tmp/home" , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
+    mkdir  ("/boot/" , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
 
 
@@ -45,31 +47,33 @@ static int child(void *arg)
 
 
     for (std::vector<std::string>::iterator i = mountpoints.begin(); i != mountpoints.end(); i++) {
-        mount(i->c_str(), ("/tmp/root" + *i).c_str(), 0,  MS_BIND, 0);
-        mount(0,  ("/tmp/root" + *i).c_str(), 0,  MS_REMOUNT | MS_RDONLY | MS_BIND, 0);
+        mount(i->c_str(), ("/boot" + *i).c_str(), 0,  MS_BIND, 0);
+        mount(0,  ("/boot" + *i).c_str(), 0,  MS_REMOUNT | MS_RDONLY | MS_BIND, 0);
     }
 
     // do we need sys? its polluted with systemd shit
     std::vector<std::string> rwmountpoints({
         "/dev",
-        "/run"
+        "/run",
+        "/tmp" //rw bind because we share ccache
     });
 
-    for (std::vector<std::string>::iterator i = mountpoints.begin(); i != mountpoints.end(); i++) {
-        mount(i->c_str(), ("/tmp/root" + *i).c_str(), 0,  MS_BIND | MS_REC, 0);
+    for (std::vector<std::string>::iterator i = rwmountpoints.begin(); i != rwmountpoints.end(); i++) {
+        mount(i->c_str(), ("/boot" + *i).c_str(), 0,  MS_BIND | MS_REC, 0);
     }
 
     // new proc
-    mount  ("none", "/tmp/root/proc", "proc", 0, 0);
+    mount  ("none", "/boot/proc", "proc", 0, 0);
+
 
 
     // rw mount workdir
     char cwd[40000];
     getcwd(cwd, 40000);
-    mount (cwd, (std::string("/tmp/root") + cwd).c_str(), 0, MS_BIND,0);
+    mount (cwd, (std::string("/boot") + cwd).c_str(), 0, MS_BIND,0);
 
     // chroot
-    if (chroot("/tmp/root") != 0)
+    if (chroot("/boot") != 0)
         throw std::runtime_error("chroot2 failed");
 
     // dont get stuck in the old cwd with the old mount ns!
@@ -122,6 +126,8 @@ int main(int argc, char **argv)
 
     free(stack);
 
+
+    return WEXITSTATUS(r);
 
     //should print info about still running children here, just to prove why we need this :/
 

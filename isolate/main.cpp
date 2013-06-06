@@ -1,4 +1,5 @@
 #include <string>
+#include <vector>
 #include <iostream>
 #include <stdexcept>
 
@@ -35,18 +36,30 @@ static int child(void *arg)
     mkdir  ("/tmp/root" , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
     mkdir  ("/tmp/home" , S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH);
 
-    // bind root into that universe
-    // TODO MS_REC does not work with MS_REMOUNT. need to go manually through fstab
-    mount("/", "/tmp/root", 0,  MS_BIND, 0);
-    mount(0, "/tmp/root", 0,  MS_REMOUNT | MS_RDONLY | MS_BIND, 0);
 
-    mount("/dev", "/tmp/root/dev", 0,  MS_BIND | MS_REC, 0);
-    mount("/run", "/tmp/root/run", 0,  MS_BIND | MS_REC, 0);
-//    do we need sys? its polluted with systemd shit
-//    mount("/sys", "/tmp/sys", 0,  MS_BIND | MS_REC, 0);
 
-    // our proc is different. should not bind that
-    umount ("/tmp/root/proc");
+    std::vector<std::string> mountpoints({
+        "/",
+        "/data"
+    });
+
+
+    for (std::vector<std::string>::iterator i = mountpoints.begin(); i != mountpoints.end(); i++) {
+        mount(i->c_str(), ("/tmp/root" + *i).c_str(), 0,  MS_BIND, 0);
+        mount(0,  ("/tmp/root" + *i).c_str(), 0,  MS_REMOUNT | MS_RDONLY | MS_BIND, 0);
+    }
+
+    // do we need sys? its polluted with systemd shit
+    std::vector<std::string> rwmountpoints({
+        "/dev",
+        "/run"
+    });
+
+    for (std::vector<std::string>::iterator i = mountpoints.begin(); i != mountpoints.end(); i++) {
+        mount(i->c_str(), ("/tmp/root" + *i).c_str(), 0,  MS_BIND | MS_REC, 0);
+    }
+
+    // new proc
     mount  ("none", "/tmp/root/proc", "proc", 0, 0);
 
 
@@ -55,7 +68,7 @@ static int child(void *arg)
     getcwd(cwd, 40000);
     mount (cwd, (std::string("/tmp/root") + cwd).c_str(), 0, MS_BIND,0);
 
-    // chroot 
+    // chroot
     if (chroot("/tmp/root") != 0)
         throw std::runtime_error("chroot2 failed");
 

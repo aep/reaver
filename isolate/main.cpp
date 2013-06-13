@@ -42,7 +42,8 @@ static int child(void *arg)
 
     std::vector<std::string> mountpoints({
         "/",
-        "/data"
+        "/data",
+        "/mnt/tools",
     });
 
 
@@ -70,7 +71,7 @@ static int child(void *arg)
     // rw mount workdir
     char cwd[40000];
     getcwd(cwd, 40000);
-    mount (cwd, (std::string("/boot") + cwd).c_str(), 0, MS_BIND,0);
+    mount (cwd, (std::string("/boot") + cwd).c_str(), 0, MS_BIND | MS_REC,0);
 
     // chroot
     if (chroot("/boot") != 0)
@@ -122,6 +123,8 @@ int main(int argc, char **argv)
     int r = 0;
     if (waitpid(pid, &r, 0) == -1)
         throw std::runtime_error("waitpid failed");
+
+
 
 
     free(stack);
